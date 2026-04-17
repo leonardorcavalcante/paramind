@@ -49,11 +49,12 @@ func (w *Writer) WriteResult(result model.Result) error {
 func WriteStats(out io.Writer, stats model.Stats) error {
 	_, err := fmt.Fprintf(
 		out,
-		"Processed: %d URLs\nWith Params: %d\nClassified: %d\nHigh Confidence: %d\n",
+		"Processed: %d URLs\nWith Params: %d\nClassified: %d\nHigh Confidence: %d\nDuplicates: %d\n",
 		stats.Processed,
 		stats.WithParams,
 		stats.Classified,
 		stats.HighConfidence,
+		stats.Duplicates,
 	)
 	return err
 }

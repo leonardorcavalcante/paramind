@@ -27,6 +27,7 @@ func main() {
 		minConfidence   string
 		silent          bool
 		categoryFilters string
+		dedupeMode      string
 	)
 
 	flag.BoolVar(&jsonOutput, "json", false, "emit JSON Lines output")
@@ -34,7 +35,14 @@ func main() {
 	flag.StringVar(&minConfidence, "min-confidence", "low", "minimum confidence to show: low, medium, high")
 	flag.BoolVar(&silent, "silent", false, "only print matching URLs")
 	flag.StringVar(&categoryFilters, "category", "", "comma-separated class filter")
+	flag.StringVar(&dedupeMode, "dedupe", "exact", "dedupe mode: exact (full URL) or signature (host+path+param keys)")
 	flag.Parse()
+
+	dedupeMode = strings.ToLower(strings.TrimSpace(dedupeMode))
+	if dedupeMode != "exact" && dedupeMode != "signature" {
+		fmt.Fprintf(os.Stderr, "invalid -dedupe value: expected exact or signature\n")
+		os.Exit(2)
+	}
 
 	minLevel, err := filter.ParseMinConfidence(minConfidence)
 	if err != nil {
@@ -74,7 +82,13 @@ func main() {
 			continue
 		}
 
-		if seen.Seen(parsed.Canonical) {
+		dedupeKey := parsed.Canonical
+		if dedupeMode == "signature" {
+			dedupeKey = parsed.Signature
+		}
+
+		if seen.Seen(dedupeKey) {
+			stats.Duplicates++
 			continue
 		}
 

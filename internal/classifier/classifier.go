@@ -92,13 +92,22 @@ func (c *Classifier) Classify(param, value string) (model.Finding, bool) {
 			continue
 		}
 
-		if bestIndex == -1 || c.categories[i].Priority < c.categories[bestIndex].Priority {
+		if bestIndex == -1 {
 			bestIndex = i
 			bestConfidence = confidence
 			continue
 		}
 
-		if c.categories[i].Priority == c.categories[bestIndex].Priority && confidenceRank(confidence) > confidenceRank(bestConfidence) {
+		currentRank := confidenceRank(confidence)
+		bestRank := confidenceRank(bestConfidence)
+
+		if currentRank > bestRank {
+			bestIndex = i
+			bestConfidence = confidence
+			continue
+		}
+
+		if currentRank == bestRank && c.categories[i].Priority < c.categories[bestIndex].Priority {
 			bestIndex = i
 			bestConfidence = confidence
 		}
@@ -190,6 +199,7 @@ func defaultDefinitions() []categoryDefinition {
 				"redirect_url", "redirect_uri", "return",
 				"return_url", "return_to", "next", "continue",
 				"goto", "callback", "to",
+				"forward", "success_url", "cancel_url",
 				"destino", "retorno", "url_retorno", "retorno_url",
 				"prox", "proximo", "proxima", "continuar", "voltar",
 				"voltar_para", "redir", "redirecionar", "destino_url",
@@ -213,6 +223,7 @@ func defaultDefinitions() []categoryDefinition {
 			ExactKeys: []string{
 				"uri", "link", "src", "source", "feed", "host", "domain",
 				"proxy", "fetch", "site", "webhook", "endpoint", "api", "image_url",
+				"image", "avatar", "remote",
 				"origem", "origen", "fonte", "fuente", "servidor", "dominio",
 				"endereco", "direccion", "url_imagem", "imagem_url",
 				"url_imagen", "imagen_url", "webhook_url", "url_webhook",
@@ -234,7 +245,7 @@ func defaultDefinitions() []categoryDefinition {
 			Name:     "file",
 			Priority: 4,
 			ExactKeys: []string{
-				"file", "filepath", "path", "folder", "dir", "document",
+				"file", "filepath", "filename", "path", "folder", "dir", "document",
 				"download", "template", "view", "page", "include", "layout",
 				"arquivo", "caminho", "diretorio", "diretorio_base",
 				"pasta", "anexo", "plantilla", "vista", "descarga",
@@ -284,6 +295,7 @@ func defaultDefinitions() []categoryDefinition {
 			ExactKeys: []string{
 				"query", "search", "q", "filter", "sort", "order",
 				"column", "table", "where",
+				"orderby", "groupby", "having",
 				"busca", "pesquisa", "buscar", "consulta", "filtro",
 				"filtros", "ordem", "ordenacao", "ordenar", "orden",
 				"criterio", "coluna", "tabela", "onde",
@@ -325,6 +337,7 @@ func defaultDefinitions() []categoryDefinition {
 			ExactKeys: []string{
 				"debug", "test", "env", "admin", "internal",
 				"preview", "render", "template",
+				"verbose", "trace", "dev",
 				"teste", "ambiente", "interno", "previa",
 				"previsualizacao", "rascunho", "homologacao", "homolog",
 				"staging", "administracao", "modo_teste", "modo_debug",

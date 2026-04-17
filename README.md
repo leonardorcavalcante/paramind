@@ -9,11 +9,12 @@ It does not send HTTP requests, does not fuzz, and does not attempt exploitation
 - Reads one URL per line from `stdin`
 - Accepts only valid `http` and `https` URLs
 - Skips empty lines, invalid URLs, static asset URLs, and URLs without query strings
-- Deduplicates URLs
+- Supports SPA hash routes (`#/path?...` and `#!/path?...`) when no backend query is present
+- Deduplicates URLs (exact by default, or value-type-aware signature via `-dedupe`)
 - Classifies parameters by semantic class
 - Assigns a confidence level based on exact, normalized, or partial matches
 - Emits results immediately as it processes input
-- Prints execution stats at the end
+- Prints execution stats at the end (including a `Duplicates` counter)
 
 The processing model is streaming-based and memory-conscious: URLs are processed one at a time, without accumulating the full input set in memory.
 
@@ -133,6 +134,14 @@ URL: https://app.example.com/login?next=%2Fdashboard&id=12&token=abc123
 
 -category auth,redirect,ssrf,file,id,sqli,xss,debug
     Restrict output to one or more classes
+
+-dedupe exact|signature
+    How to deduplicate URLs. Default is `exact` (full-URL dedup), so
+    `?id=1` and `?id=2` both appear.
+    `signature` dedupes on host + path + sorted param keys annotated with a
+    per-value type bucket: `n` numeric, `s` string, `e` empty. Sequential
+    noise like `?id=1, ?id=2, ?id=3` collapses to one, but type variation
+    like `?id=admin` or `?id=` is still preserved as a separate URL.
 ```
 
 ## JSON Output
@@ -213,7 +222,9 @@ Confidence rules:
 
 Normalization lowercases keys and removes `_`, `-`, and common accents before comparison.
 
-If multiple classes match a parameter, the higher-priority class wins.
+If multiple classes match a parameter, the higher confidence wins. So an exact match in a lower-priority class (e.g. `keyword` → `xss`) beats a partial match in a higher-priority class. Priority only breaks ties within the same confidence level.
+
+When a URL has no backend query string, `paramind` looks at the fragment and accepts SPA hash routes that start with `/` or `!` and contain `?` (e.g. `https://app.example.com/#/admin/users?id=42`). Pure anchors like `#section` are still skipped. If both backend query and SPA fragment are present, the backend query wins.
 
 ## Scope
 

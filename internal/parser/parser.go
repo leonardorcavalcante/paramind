@@ -3,6 +3,7 @@ package parser
 import (
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 
 	"paramind/internal/model"
@@ -29,6 +30,7 @@ var staticExtensions = map[string]struct{}{
 
 type Parsed struct {
 	Canonical string
+	Signature string
 	Params    []model.QueryParam
 }
 
@@ -47,27 +49,119 @@ func ParseLine(line string) (Parsed, bool) {
 		return Parsed{}, false
 	}
 
-	if parsedURL.RawQuery == "" {
-		return Parsed{}, false
+	parsedURL.Scheme = scheme
+	parsedURL.Host = strings.ToLower(parsedURL.Host)
+
+	rawQuery := parsedURL.RawQuery
+	spaPath := ""
+	fromFragment := false
+
+	if rawQuery == "" {
+		path, query, ok := extractSPAFragment(parsedURL.Fragment)
+		if !ok {
+			return Parsed{}, false
+		}
+		rawQuery = query
+		spaPath = path
+		fromFragment = true
 	}
 
 	if isStaticAsset(parsedURL.Path) {
 		return Parsed{}, false
 	}
+	if fromFragment && isStaticAsset(spaPath) {
+		return Parsed{}, false
+	}
 
-	params := parseOrderedQuery(parsedURL.RawQuery)
+	params := parseOrderedQuery(rawQuery)
 	if len(params) == 0 {
 		return Parsed{}, false
 	}
 
-	parsedURL.Scheme = scheme
-	parsedURL.Host = strings.ToLower(parsedURL.Host)
-	parsedURL.Fragment = ""
+	sigPath := parsedURL.Path
+	var canonical string
+	if fromFragment {
+		sigPath = parsedURL.Path + "#" + spaPath
+		canonical = parsedURL.String()
+	} else {
+		parsedURL.Fragment = ""
+		canonical = parsedURL.String()
+	}
 
 	return Parsed{
-		Canonical: parsedURL.String(),
+		Canonical: canonical,
+		Signature: buildSignature(parsedURL, sigPath, params),
 		Params:    params,
 	}, true
+}
+
+func extractSPAFragment(fragment string) (spaPath, rawQuery string, ok bool) {
+	if fragment == "" {
+		return "", "", false
+	}
+	if !strings.HasPrefix(fragment, "/") && !strings.HasPrefix(fragment, "!") {
+		return "", "", false
+	}
+	idx := strings.Index(fragment, "?")
+	if idx < 0 {
+		return "", "", false
+	}
+	return fragment[:idx], fragment[idx+1:], true
+}
+
+func buildSignature(u *url.URL, pathPart string, params []model.QueryParam) string {
+	buckets := make(map[string]string, len(params))
+	order := make([]string, 0, len(params))
+	for _, p := range params {
+		lower := strings.ToLower(p.Name)
+		bucket := valueBucket(p.Value)
+		if existing, ok := buckets[lower]; ok {
+			if existing != bucket && existing != "m" {
+				buckets[lower] = "m"
+			}
+			continue
+		}
+		buckets[lower] = bucket
+		order = append(order, lower)
+	}
+	sort.Strings(order)
+
+	parts := make([]string, len(order))
+	for i, key := range order {
+		parts[i] = key + ":" + buckets[key]
+	}
+	return u.Scheme + "://" + u.Host + pathPart + "?" + strings.Join(parts, "&")
+}
+
+func valueBucket(value string) string {
+	if value == "" {
+		return "e"
+	}
+	if isNumeric(value) {
+		return "n"
+	}
+	return "s"
+}
+
+func isNumeric(value string) bool {
+	hasDigit := false
+	dotSeen := false
+	for i, r := range value {
+		switch {
+		case r == '-' && i == 0:
+			continue
+		case r == '.':
+			if dotSeen {
+				return false
+			}
+			dotSeen = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		default:
+			return false
+		}
+	}
+	return hasDigit
 }
 
 func isStaticAsset(pathValue string) bool {

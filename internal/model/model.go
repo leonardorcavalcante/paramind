@@ -34,4 +34,5 @@ type Stats struct {
 	WithParams     int
 	Classified     int
 	HighConfidence int
+	Duplicates     int
 }
